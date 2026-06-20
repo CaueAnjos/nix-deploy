@@ -15,7 +15,7 @@
     flake-parts.lib.mkFlake {inherit inputs;} {
       imports = [
         (import ./packages {inherit inputs;})
-        (import ./lib {inherit self;})
+        (import ./lib {inherit inputs self;})
         ./scripts
       ];
       systems = import inputs.systems;
@@ -28,7 +28,6 @@
           inherit system;
           overlays = with self.overlays; [
             default
-            lib
           ];
         };
 

@@ -1,6 +1,15 @@
-{self}: {
-  flake.overlays.lib = pkgs: _: {
-    deployTools = self.lib.deployTools {inherit pkgs;};
+{
+  inputs,
+  self,
+}: {
+  imports = [
+    inputs.flake-parts.flakeModules.easyOverlay
+  ];
+
+  perSystem = {pkgs, ...}: {
+    overlayAttrs = {
+      deployTools = self.lib.deployTools {inherit pkgs;};
+    };
   };
 
   flake.lib = {
