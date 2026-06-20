@@ -24,6 +24,8 @@
           })
         ];
       } ''copyclosure "$out"'';
+
+      test-bundle = pkgs.deployTools.mkBundle pkgs.hello;
     };
 
     overlayAttrs = {
