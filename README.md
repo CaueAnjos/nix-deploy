@@ -47,7 +47,7 @@ lib.deployTools.mkBundle {
 
 This is very important! Read it with careful.
 
-**Nix-Deploy** Doesn't obligate users to use a specific standard. You can
+**Nix-Deploy** doesn't obligate users to use a specific standard. You can
 develop your on logic using the handy tools delivered by this project. But,
 `mkBundle` have a standard. If you are planning to use it, please read about its
 standards.
