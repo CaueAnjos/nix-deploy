@@ -11,16 +11,12 @@
     packages = {
       inherit (pkgs) patchelf;
       patchstrings = pkgs.callPackage ./patchstrings.nix {};
-      copyclosure = pkgs.callPackage ./copyclosure.nix {};
-      runtimedeps = pkgs.callPackage ./runtimedeps.nix {};
 
       hello-closure = pkgs.runCommand "hello-closure" {
         nativeBuildInputs = [
-          (pkgs.copyclosure.override {
+          (pkgs.deployTools.mkCopyclosureCommand {
             drv = pkgs.hello;
-            refs = pkgs.runtimedeps.override {
-              drv = pkgs.hello;
-            };
+            refs = pkgs.deployTools.mkRuntimeDeps pkgs.hello;
           })
         ];
       } ''copyclosure "$out"'';

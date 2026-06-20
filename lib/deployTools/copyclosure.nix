@@ -1,7 +1,8 @@
 {
   writeShellApplication,
   referencesByPopularity,
-  drv ? null,
+}: {
+  drv,
   refs ? null,
 }:
 writeShellApplication {
@@ -13,5 +14,5 @@ writeShellApplication {
       then referencesByPopularity drv
       else refs;
   };
-  text = builtins.readFile ../src/copyclosure/copyclosure.sh;
+  text = builtins.readFile ../../src/copyclosure/copyclosure.sh;
 }
