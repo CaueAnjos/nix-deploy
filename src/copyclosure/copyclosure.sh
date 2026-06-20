@@ -12,6 +12,5 @@ while read -r line; do
         item="$out_path/${line##*/}"
         mkdir -p "$item"
         cp -r "$line" "$item"
-        chmod -R 777 "$item"
     fi
 done <"$closure"
