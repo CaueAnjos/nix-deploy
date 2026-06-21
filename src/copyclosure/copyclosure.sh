@@ -10,7 +10,6 @@ while read -r line; do
 
     if [[ "$line" != "$DRV" ]]; then
         item="$out_path/${line##*/}"
-        mkdir -p "$item"
         cp -r "$line" "$item"
     fi
 done <"$closure"
