@@ -21,7 +21,9 @@
         ];
       } ''copyclosure "$out"'';
 
-      test-bundle = pkgs.deployTools.mkBundle pkgs.hello;
+      test-bundle = pkgs.deployTools.mkBundle {
+        drv = pkgs.hello;
+      };
     };
 
     overlayAttrs = {

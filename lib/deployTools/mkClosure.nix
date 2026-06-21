@@ -7,5 +7,5 @@ in
   runCommand "${drv.pname}-closure"
   {nativeBuildInputs = [copyclosure];}
   ''
-    copyclosure "/nix/store/$out"
+    copyclosure "$out/nix/store"
   ''
