@@ -41,9 +41,9 @@ if [[ ! -x "$bin" ]]; then
     exit 1
 fi
 
-perl -0777 -pi -e "s{$old}{
+perl -0777 -pi -e "s{\Q$old\E}{
     my \$r = \"$new\";
-    \$r . (\0 x ($size_old - length(\$r)))
+    \$r . (chr(0) x ($size_old - length(\$r)))
   }ge" "$bin"
 
 echo "$bin: $old -> $new"
