@@ -20,7 +20,7 @@
     }: {
       mkBundle = pkgs.callPackage ./deployTools/mkBundle.nix {};
       mkRuntimeDeps = pkgs.callPackage ./deployTools/mkRuntimeDeps.nix {};
-
+      mkClosure = pkgs.callPackage ./deployTools/mkClosure.nix {};
       mkCopyclosureCommand = pkgs.callPackage ./deployTools/copyclosure.nix {};
     };
   };
