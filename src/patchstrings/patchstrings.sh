@@ -2,25 +2,29 @@
 
 if [[ "$1" == "--find" ]]; then
     regex="$2"
-    bin="$3"
+    path="$3"
 
-    if [[ -z "$regex" || -z "$bin" ]]; then
-        echo "usage: $0 --find <regex> <binary>"
+    if [[ -z "$regex" || -z "$path" ]]; then
+        echo "usage: $0 --find <regex> <path>"
         exit 1
     fi
 
-    if [[ ! -f "$bin" ]]; then
-        echo "[error]: $bin doesn't exist"
+    if [[ -f "$path" ]]; then
+        strings "$path" | grep -Eo "$regex" | sed '/^$/d' | sort -u
         exit 1
     fi
 
-    REGEX="$regex" perl -0777 -ne '
-        my $r = $ENV{REGEX};
-        while (/$r[^\0]*/g) {
-            print "$&\n";
-        }
-    ' "$bin"
-    exit 0
+    if [[ -d "$path" ]]; then
+        find "$path" -type f -exec sh -c '
+        for file do
+            strings "$file" | grep -Eo "$0"
+        done
+    ' "$regex" {} + | sed '/^$/d' | sort -u
+        exit 0
+    fi
+
+    echo "[error]: '$path' needs to be directory or file".
+    exit 1
 fi
 
 old="$1"
