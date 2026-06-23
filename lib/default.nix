@@ -17,14 +17,23 @@
       pkgs,
       lib ? pkgs.lib,
       system ? pkgs.system,
-    }: {
-      mkBundle = pkgs.callPackage ./deployTools/mkBundle.nix {};
-      # FIX: possibly need to rewrite
-      mkRuntimeDeps = pkgs.callPackage ./deployTools/mkRuntimeDeps.nix {};
-      mkClosure = pkgs.callPackage ./deployTools/mkClosure.nix {};
-      mkCopyclosureCommand = pkgs.callPackage ./deployTools/copyclosure.nix {};
-
-      references = pkgs.callPackage ./deployTools/references.nix {};
-    };
+    }: let
+      deployTools = rec {
+        references = pkgs.callPackage ./deployTools/references.nix {};
+        mkCompactClosure = pkgs.callPackage ./deployTools/mkCompactClosure.nix {
+          inherit references;
+        };
+        mkBundle = pkgs.callPackage ./deployTools/mkBundle.nix {
+          inherit deployTools;
+        };
+        # FIX: possibly need to rewrite
+        mkRuntimeDeps = pkgs.callPackage ./deployTools/mkRuntimeDeps.nix {};
+        mkClosure = pkgs.callPackage ./deployTools/mkClosure.nix {
+          inherit deployTools;
+        };
+        mkCopyclosureCommand = pkgs.callPackage ./deployTools/copyclosure.nix {};
+      };
+    in
+      deployTools;
   };
 }
