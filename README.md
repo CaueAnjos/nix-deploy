@@ -62,6 +62,33 @@ In essence, `mkBundle` iterates over the derivation closure, patches all
 references to it and organizes its dependencies, so you can just move then
 around without fear of break anything.
 
+- `mkBundle` assembles its payload through `lib.deployTools.mkCompactClosure`,
+  which prunes the bundle closure using a small set of filters. By default these
+  filters drop paths whose basename matches `-bash-`, `-coreutils-`, or
+  `-less-`, keeping bundles lean without sacrificing typical runtime
+  requirements. Extend or trim the lists via the `referenceExcludes`
+  attrset—`useDefaults` defaults to `true`, `extraPatterns` combines with the
+  basename matcher, and `extraPaths` accepts concrete store paths when you need
+  to exclude specific artifacts.
+
+  ```nix
+  referenceExcludes = {
+    extraPatterns = [ "-foo-" ];
+    extraPaths = [ "/nix/store/..." ];
+    useDefaults = true;
+  };
+  ```
+
+  You can also call the helper directly:
+
+  ```nix
+  compactClosure = deployTools.mkCompactClosure { extraPatterns = [ "-foo-" ]; };
+  ```
+
+  Set `useDefaults = false` when you need a pristine closure.
+  - Advanced users may replace the helper entirely by overriding the
+    `compactClosure` attribute; `mkBundle` will respect the provided derivation
+    and skip its internal helper wiring.
 - Libraries goes to `libPath` relative to the derivation! If `style` is
   `self-contained`, you really don't need to touch here. If `style` is
   `system-trust`, you are expected to guarantee that the libs inside `libPath`
