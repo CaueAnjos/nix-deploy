@@ -1,3 +1,4 @@
+# FIX: this logic can be more configurable and explicit
 {
   lib,
   references,
