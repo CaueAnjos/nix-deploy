@@ -13,10 +13,7 @@
     if stdenv.is64bit
     then "/lib64/ld-linux-x86-64.so.2"
     else "/lib/ld-linux.so.2",
-  rpath ?
-    if stdenv.is64bit
-    then "/lib64"
-    else "/lib",
+  rpath ? "/lib",
   referenceExcludes ? {
     useDefaults = true;
     extraPatterns = [];
@@ -69,16 +66,15 @@ in
             )
 
             local old_rpath=$(patchelf --print-rpath "$item")
-            local new_rpath=$(realpath 'final/${rpath}/' --relative-to 'final/lib/libc.so.6' |
-          sed 's/\.\./$ORIGIN/')
+            local new_rpath="${
+          if absoluteReferences
+          then rpath
+          else "$(realpath 'final/${rpath}/' --relative-to 'final/lib/libc.so.6' | sed 's/\.\./$ORIGIN/')"
+        }"
 
             case "$elf_type" in
                 EXEC|DYN)
-                    patchelf --set-rpath "${
-          if absoluteReferences
-          then rpath
-          else "$new_rpath"
-        }" "$item"
+                    patchelf --set-rpath "$new_rpath" "$item"
                     echo "patched $item: $old_rpath -> $new_rpath"
                     ;;
 
