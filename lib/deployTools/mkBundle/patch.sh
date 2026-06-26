@@ -45,29 +45,25 @@ patch_elf() {
 patch_strings() {
     local item="$1"
 
-    if [[ ! -x $item ]]; then
-        echo "skipping $item (isn't executable)"
+    if [[ ! -f "$item" ]]; then
+        echo "skipping $item (not a regular file)"
         return 0
     fi
 
     local references
-    references=$(
-        { patchstrings --find "/nix/store/[a-z0-9]{32}-[^'\" ]+" "$item" 2>/dev/null || true; } |
-            tr ':' '\n'
-    )
+    references=$(patchstrings --find "/nix/store/[a-z0-9]{32}-[^'\" ]+" "$item" 2>/dev/null || true)
 
-    if [[ -z $references ]]; then
-        echo "skipping $item (no string references)"
+    if [[ -z "$references" ]]; then
+        echo "skipping $item (no nix store references)"
         return 0
     fi
 
-    echo "patching $item string: "
-    while read -r ref; do
-        local substitution=""
-        substitution=$(sed -E "s|/nix/store/[a-z0-9]{32}-[^/]+|$INSTALL_PREFIX|g" <<<"$ref")
-        patchstrings "$ref" "$substitution" "$item" &>/dev/null
-        echo "- patched string $ref -> $substitution"
-    done <<<"$references"
+    echo "patching $item"
+    if file "$item" | grep -q 'text'; then
+        patchstrings --text --regex 's|/nix/store/[a-z0-9]{32}-[^/]+|'"$INSTALL_PREFIX"'|g' "$item"
+    else
+        patchstrings --regex 's|/nix/store/[a-z0-9]{32}-[^/]+|'"$INSTALL_PREFIX"'|g' "$item"
+    fi
 }
 
 patch() {
