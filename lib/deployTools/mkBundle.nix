@@ -8,18 +8,18 @@
   drv,
   pname ? "${drv.pname}-bundled",
   version ? drv.version,
-  INSTALL_PREFIX ? "/usr/${drv.pname}",
-  INTERPRETER ?
+  installPrefix ? "/usr/${drv.pname}",
+  interpreter ?
     if stdenv.is64bit
     then "/lib64/ld-linux-x86-64.so.2"
     else "/lib/ld-linux.so.2",
-  RPATH ? "/lib",
+  rpath ? "/lib",
   referenceExcludes ? {
     useDefaults = true;
     extraPatterns = [];
     extraPaths = [];
   },
-  ABSOLUTE ? false,
+  absolute ? false,
   compactClosure ?
     deployTools.mkCompactClosure {
       inherit drv referenceExcludes;
@@ -36,7 +36,11 @@ in
   (stdenv.mkDerivation ({
       inherit pname version;
       src = deployTools.mkClosure drv;
-      inherit INSTALL_PREFIX INTERPRETER RPATH ABSOLUTE;
+
+      INSTALL_PREFIX = installPrefix;
+      INTERPRETER = interpreter;
+      RPATH = rpath;
+      ABSOLUTE = absolute;
 
       nativeBuildInputs = [
         patchelf
