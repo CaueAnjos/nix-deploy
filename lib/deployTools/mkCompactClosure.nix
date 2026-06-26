@@ -16,9 +16,6 @@
     lib.filter (path: path != "")
     (lib.splitString "\n" (builtins.readFile referencesFile));
   defaultExcludePatterns = [
-    "-bash-"
-    "-coreutils-"
-    "-less-"
   ];
   excludeConfig = referenceExcludes;
   excludePatterns = lib.unique (
