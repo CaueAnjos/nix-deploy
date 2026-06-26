@@ -1,6 +1,7 @@
 {
   deployTools,
   lib,
+  parallel,
   patchelf,
   patchstrings,
   stdenv,
@@ -8,17 +9,18 @@
   drv,
   pname ? "${drv.pname}-bundled",
   version ? drv.version,
-  installPrefix ? "/usr/${drv.pname}",
+  installPrefix ? "/opt/${drv.pname}",
   interpreter ?
     if stdenv.is64bit
-    then "/lib64/ld-linux-x86-64.so.2"
-    else "/lib/ld-linux.so.2",
+    then "${installPrefix}/lib64/ld-linux-x86-64.so.2"
+    else "${installPrefix}/lib/ld-linux.so.2",
   rpath ? "/lib",
   referenceExcludes ? {
     useDefaults = true;
     extraPatterns = [];
     extraPaths = [];
   },
+  patchScript ? ./mkBundle/patch.sh,
   absolute ? false,
   compactClosure ?
     deployTools.mkCompactClosure {
@@ -42,7 +44,10 @@ in
       RPATH = rpath;
       ABSOLUTE = absolute;
 
+      PATCH_SCRIPT = patchScript;
+
       nativeBuildInputs = [
+        parallel
         patchelf
         patchstrings
       ];
@@ -55,7 +60,7 @@ in
 
       dontFixup = true;
 
-      buildPhase = builtins.readFile ./mkBundle/patch.sh;
+      buildPhase = builtins.readFile ./mkBundle/default_build.sh;
 
       installPhase = ''
         chmod -R a-w "final"
