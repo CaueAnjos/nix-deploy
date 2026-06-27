@@ -6,6 +6,6 @@ writeShellApplication {
   name = "patchstrings";
   runtimeInputs = [perl];
   text = ''
-    perl ${../src/patchstrings/patchstrings.pl} "$@"
+    perl -I ${../src/patchstrings/lib} ${../src/patchstrings/bin/patcher.pl} "$@"
   '';
 }
