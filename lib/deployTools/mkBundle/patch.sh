@@ -19,8 +19,8 @@ set -euo pipefail
 #   RPATH          - absolute rpath to stamp on every ELF (ABSOLUTE mode)
 # ---------------------------------------------------------------------------
 
-NIX_STORE_REGEX="(?:/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9+._?=-]+[^/"'"'"]+)+"
-NIX_STRING_REGEX="(?:/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9+._?=-]+)+"
+NIX_STRING_REGEX="/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9+._?=-]+"
+NIX_STORE_REGEX="(?:${NIX_STRING_REGEX})+"
 
 # ---------------------------------------------------------------------------
 # patch_elf <file>
@@ -163,9 +163,9 @@ patch_strings() {
 
     echo "patching strings $item"
     if file "$item" | grep -q 'text'; then
-        patchstrings --text --regex 's|'"$NIX_STORE_REGEX"'|'"$INSTALL_PREFIX"'|g' "$item"
+        patchstrings --text --regex "s|${NIX_STORE_REGEX}|${INSTALL_PREFIX}|g" "$item"
     else
-        patchstrings --regex 's|'"$NIX_STORE_REGEX"'|'"$INSTALL_PREFIX"'|g' "$item"
+        patchstrings --regex "s|${NIX_STORE_REGEX}|${INSTALL_PREFIX}|g" "$item"
     fi
 }
 
