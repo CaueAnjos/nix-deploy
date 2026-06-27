@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NIX_STRING_REGEX="/nix/store/[a-z0-9]{32}-[^'\" ]+"
+NIX_STRING_REGEX="(?:/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9+._?=-]+)+"
 
 : "${INTERPRETER:?INTERPRETER must be set}"
 : "${INSTALL_PREFIX:?INSTALL_PREFIX must be set}"
