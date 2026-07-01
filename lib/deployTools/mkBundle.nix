@@ -15,20 +15,12 @@
     then "${installPrefix}/lib64/ld-linux-x86-64.so.2"
     else "${installPrefix}/lib/ld-linux.so.2",
   rpath ? "/lib",
-  referenceExcludes ? {
-    useDefaults = true;
-    extraPatterns = [];
-    extraPaths = [];
-  },
   patchScript ? ./mkBundle/patch.sh,
   absolute ? false,
-  compactClosure ?
-    deployTools.mkCompactClosure {
-      inherit drv referenceExcludes;
-    },
+  compactClosure ? deployTools.mkCompactClosure drv,
   ...
 } @ args: let
-  privateArgNames = ["drv" "referenceExcludes" "compactClosure"];
+  privateArgNames = ["drv" "compactClosure"];
   sanitizedArgs = lib.filterAttrs (name: _: !(lib.elem name privateArgNames)) args;
 in
   lib.warnIfNot stdenv.isLinux
