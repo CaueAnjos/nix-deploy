@@ -77,14 +77,14 @@ patch_elf() {
                     # Example:
                     #   entry    = /nix/store/abc...-glibc-2.38/lib
                     #   subpath  = /lib
-                    #   item     = final/bin/foo
-                    #   target   = final/lib  (where the lib actually lives during build)
-                    #   relative = ../lib  (from final/bin/ to final/lib)
+                    #   item     = ./bin/foo
+                    #   target   = ./lib  (where the lib actually lives during build)
+                    #   relative = ../lib  (from ./bin/ to ./lib)
                     #   result   = $ORIGIN/../lib
                     local subpath="${BASH_REMATCH[1]}" # may be empty for pkg root
                     local item_dir
                     item_dir=$(dirname "$item")
-                    local target_abs="final${subpath}"
+                    local target_abs="${subpath}"
                     local rel
                     rel=$(realpath --relative-to="$item_dir" "$target_abs" 2>/dev/null ||
                         echo "${subpath#/}")

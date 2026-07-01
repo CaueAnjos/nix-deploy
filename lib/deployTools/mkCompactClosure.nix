@@ -5,7 +5,7 @@
 }: drv: let
   referencesFile = references drv;
   referencePaths = lib.unique (
-    lib.filter (path: path != "" && lib.hasPrefix "/" path)
+    lib.filter (path: path != "" && lib.pathIsDirectory (builtins.storePath path))
     (lib.splitString "\n" (builtins.readFile referencesFile))
   );
 in

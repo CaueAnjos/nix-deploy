@@ -4,6 +4,7 @@
   parallel,
   patchelf,
   patchstrings,
+  rsync,
   stdenv,
 }: {
   drv,
@@ -29,7 +30,7 @@ in
   ''
   (stdenv.mkDerivation ({
       inherit pname version;
-      src = deployTools.mkClosure drv;
+      src = compactClosure;
 
       INSTALL_PREFIX = installPrefix;
       INTERPRETER = interpreter;
@@ -42,12 +43,22 @@ in
         parallel
         patchelf
         patchstrings
+        rsync
       ];
 
-      configurePhase = ''
-        chmod -R a+w "nix"
-        cp -r -L "${compactClosure}" "final"
-        chmod -R a+w "final"
+      unpackPhase = ''
+        mkdir -p "src"
+        rsync -a -L "$src/." "src" || {
+          status=$?
+          # rsync exits 23 ("partial transfer due to error") when it hits a
+          # broken/dangling symlink with --copy-links; it still skips that
+          # entry and copies everything else, so treat it as non-fatal.
+          if [ "$status" -ne 23 ]; then
+            exit "$status"
+          fi
+        }
+        chmod -R u+w "src"
+        cd "src"
       '';
 
       dontFixup = true;
@@ -55,8 +66,8 @@ in
       buildPhase = builtins.readFile ./mkBundle/default_build.sh;
 
       installPhase = ''
-        chmod -R a-w "final"
-        cp -r "final" "$out"
+        chmod -R u-w .
+        cp -r . "$out"
       '';
     }
     // sanitizedArgs))

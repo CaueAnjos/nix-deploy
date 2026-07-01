@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/path/env bash
 set -euo pipefail
 
 NIX_STRING_REGEX="(?:/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9+._?=-]+)+"
@@ -21,17 +21,17 @@ echo "Interpreter : $INTERPRETER"
 echo "Prefix      : $INSTALL_PREFIX"
 echo ""
 
-find "final" -type f -print0 | parallel -0 -j8 bash "$PATCH_SCRIPT"
+find . -type f -print0 | parallel -0 -j8 bash "$PATCH_SCRIPT"
 
 echo ""
 echo "--- scan for leftover nix store references ---"
 set +e
-left_references=$(patchstrings --find "$NIX_STRING_REGEX" final/ 2>/dev/null | wc -l)
+left_references=$(patchstrings --find "$NIX_STRING_REGEX" . 2>/dev/null | wc -l)
 set -e
 
 if [[ "$left_references" -eq 0 ]]; then
     echo "Clean: no nix store references remaining."
 else
     echo "Warning: $left_references nix store reference(s) still present:"
-    patchstrings --find "$NIX_STRING_REGEX" final/ 2>/dev/null || true
+    patchstrings --find "$NIX_STRING_REGEX" . 2>/dev/null || true
 fi
