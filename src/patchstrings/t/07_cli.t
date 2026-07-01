@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use FindBin qw($RealBin);
 use lib "$RealBin/../lib";
-use Test::More tests => 9;
+use Test::More tests => 12;
 use File::Temp qw(tempfile);
 use Capture::Tiny qw(capture);
 
@@ -46,6 +46,32 @@ sub tmp_with {
     my $f = tmp_with("foo 123 bar");
     capture { run(['--text', '--regex', 's/\d+/NUM/', $f]) };
     is(read_file($f), "foo NUM bar", 'CLI regex patch with --regex --text');
+}
+
+# ---------------------------------------------------------------------------
+# --pad-str dispatch (binary mode, path-safe fill)
+# ---------------------------------------------------------------------------
+
+{
+    my $path = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-perl-5.36.0";
+    my $data = "\x01\x02" . $path . "\x00" x 10 . "\x03\x04";
+    my $f    = tmp_with($data);
+
+    capture { run(['--pad-str', '/', $path, '/opt/myapp', $f]) };
+
+    my $result = read_file($f);
+    is(length($result), length($data), 'CLI --pad-str: file size unchanged');
+    like($result, qr{/opt/myapp/+}, 'CLI --pad-str: path patched and slash-padded');
+}
+
+# ---------------------------------------------------------------------------
+# --pad-str without argument dies
+# ---------------------------------------------------------------------------
+
+{
+    my $f = tmp_with("hello world");
+    eval { run(['--pad-str']) };
+    like($@, qr/\[error\]/, '--pad-str without argument: dies');
 }
 
 # ---------------------------------------------------------------------------

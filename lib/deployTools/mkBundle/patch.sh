@@ -19,8 +19,8 @@ set -euo pipefail
 #   RPATH          - absolute rpath to stamp on every ELF (ABSOLUTE mode)
 # ---------------------------------------------------------------------------
 
-NIX_STORE_REGEX='/nix/store/[a-z0-9]{32}-[^/]+'
-NIX_STRING_REGEX="/nix/store/[a-z0-9]{32}-[^'\" ]+"
+NIX_STRING_REGEX="/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9+._?=-]+"
+NIX_STORE_REGEX="(?:${NIX_STRING_REGEX})+"
 
 # ---------------------------------------------------------------------------
 # patch_elf <file>
@@ -77,14 +77,14 @@ patch_elf() {
                     # Example:
                     #   entry    = /nix/store/abc...-glibc-2.38/lib
                     #   subpath  = /lib
-                    #   item     = final/bin/foo
-                    #   target   = final/lib  (where the lib actually lives during build)
-                    #   relative = ../lib  (from final/bin/ to final/lib)
+                    #   item     = ./bin/foo
+                    #   target   = ./lib  (where the lib actually lives during build)
+                    #   relative = ../lib  (from ./bin/ to ./lib)
                     #   result   = $ORIGIN/../lib
                     local subpath="${BASH_REMATCH[1]}" # may be empty for pkg root
                     local item_dir
                     item_dir=$(dirname "$item")
-                    local target_abs="final${subpath}"
+                    local target_abs="${subpath}"
                     local rel
                     rel=$(realpath --relative-to="$item_dir" "$target_abs" 2>/dev/null ||
                         echo "${subpath#/}")
@@ -141,8 +141,16 @@ patch_elf() {
 # patch_strings <file>
 #
 # Replaces nix store path prefixes with $INSTALL_PREFIX.
-# Text files: --text mode (no NUL-padding, size may change).
-# Binary files: NUL-padded replacement (offsets stay stable).
+# Text files: --text mode (no padding, size may change).
+# Binary files: slash-padded replacement (offsets stay stable, size does not
+# change). We explicitly use --pad-str '/' instead of the default NUL fill:
+# NUL padding corrupts strings for runtimes that store an explicit string
+# length instead of relying on NUL-termination (e.g. Perl SVs, Ruby
+# RStrings) — such readers happily read past the intended end of the
+# shortened path and pick up the raw NUL bytes as part of the string,
+# breaking module/library lookups. Padding with "/" instead keeps the
+# patched bytes entirely printable and the extra path separators are
+# semantically harmless for directory-style paths.
 # ---------------------------------------------------------------------------
 patch_strings() {
     local item
@@ -163,9 +171,9 @@ patch_strings() {
 
     echo "patching strings $item"
     if file "$item" | grep -q 'text'; then
-        patchstrings --text --regex 's|'"$NIX_STORE_REGEX"'|'"$INSTALL_PREFIX"'|g' "$item"
+        patchstrings --text --regex "s|${NIX_STORE_REGEX}|${INSTALL_PREFIX}|g" "$item"
     else
-        patchstrings --regex 's|'"$NIX_STORE_REGEX"'|'"$INSTALL_PREFIX"'|g' "$item"
+        patchstrings --pad-str '/' --regex "s|${NIX_STORE_REGEX}|${INSTALL_PREFIX}|g" "$item"
     fi
 }
 
@@ -178,41 +186,4 @@ patch_file() {
     patch_strings "$item"
 }
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-: "${INTERPRETER:?INTERPRETER must be set}"
-: "${INSTALL_PREFIX:?INSTALL_PREFIX must be set}"
-
-# Interpreter is always used as-is (caller must pass an absolute path)
-
-if [[ -n "${ABSOLUTE:-}" ]]; then
-    : "${RPATH:?RPATH must be set when ABSOLUTE=1}"
-    RPATH=$(realpath "$RPATH")
-    echo "Mode        : absolute"
-    echo "Rpath       : $RPATH"
-else
-    echo "Mode        : relative (\$ORIGIN-based, derived from existing nix store entries)"
-    echo "Output root : $INSTALL_PREFIX"
-fi
-echo "Interpreter : $INTERPRETER"
-echo "Prefix      : $INSTALL_PREFIX"
-echo ""
-
-while IFS= read -r file; do
-    patch_file "$file"
-done < <(find "final" -type f)
-
-echo ""
-echo "--- scan for leftover nix store references ---"
-set +e
-left_references=$(patchstrings --find "$NIX_STRING_REGEX" final/ 2>/dev/null | wc -l)
-set -e
-
-if [[ "$left_references" -eq 0 ]]; then
-    echo "Clean: no nix store references remaining."
-else
-    echo "Warning: $left_references nix store reference(s) still present:"
-    patchstrings --find "$NIX_STRING_REGEX" final/ 2>/dev/null || true
-fi
+patch_file "$1"

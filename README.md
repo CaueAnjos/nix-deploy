@@ -71,5 +71,17 @@ It is also possible to override the default `buildPhase`, `installPhase`,
 
 - `patchelf`: used to patch interpreter and `rpath`
 - `patchstrings`: used to patch strings inside binaries (length of the new
-  string should be lower or equal to the old string)
+  string should be lower or equal to the old string). In binary mode, the gap
+  left by a shorter replacement is filled with a repeated `--pad-str <string>`
+  (default `\x00`, i.e. NULL bytes, which is fully backward compatible).
 - `copyclosure`: used to make a copy of the closure
+
+> [!TIP]
+> NUL-padding a shortened binary string is fine for plain C strings, but it can
+> corrupt values for runtimes that store an explicit string length instead of
+> relying on NUL-termination (e.g. Perl SVs, Ruby RStrings). Those readers
+> happily read past the shortened content and pick up the raw `\0` bytes as part
+> of the string. When patching path-like strings, pass `--pad-str '/'` instead —
+> the extra trailing separators are semantically a no-op for directory-style
+> paths, and this is exactly what `mkBundle` does internally for its own
+> binary-mode string patching pass.

@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use FindBin qw($RealBin);
 use lib "$RealBin/../lib";
-use Test::More tests => 19;
+use Test::More tests => 26;
 use File::Temp qw(tempfile);
 use Capture::Tiny qw(capture);
 
@@ -75,6 +75,28 @@ sub tmp_with {
 }
 
 # ---------------------------------------------------------------------------
+# patch_literal — binary mode with pad_str => "/" (path-safe fill)
+# ---------------------------------------------------------------------------
+
+{
+    my $path = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-perl-5.36.0";
+    my $data = "\x01\x02" . $path . "\x00" x 10 . "\x03\x04";
+    my $f    = tmp_with($data);
+
+    capture { patch_literal($f, $path, "/opt/myapp", text_mode => 0, pad_str => "/") };
+
+    my $result = read_file($f);
+
+    is(length($result), length($data), 'pad_str literal: file size unchanged');
+    like($result, qr{/opt/myapp/+}, 'pad_str literal: new path present, slash-padded');
+
+    my $path_start = index($result, "/opt/myapp");
+    ok($path_start >= 0, 'pad_str literal: new path found');
+    my $segment = substr($result, $path_start, length($path));
+    ok(index($segment, "\x00") == -1, 'pad_str literal: no NUL within patched segment');
+}
+
+# ---------------------------------------------------------------------------
 # patch_literal — no match warns, returns 0
 # ---------------------------------------------------------------------------
 
@@ -136,6 +158,30 @@ sub tmp_with {
     my $nul_pos   = index($result, "\x00", $url_start);
     my $com_pos   = index($result, ".com",  $url_start);
     ok($com_pos < $nul_pos, 'regex binary: NUL padding follows .com');
+}
+
+# ---------------------------------------------------------------------------
+# patch_regex — binary mode with pad_str => "/" (path-safe fill)
+# ---------------------------------------------------------------------------
+
+{
+    my $path = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-perl-5.36.0";
+    my $data = "\x01\x02" . $path . "\x00" x 10 . "\x03\x04";
+    my $f    = tmp_with($data);
+
+    capture {
+        patch_regex($f, 's|/nix/store/[a-z0-9]+-perl-5\.36\.0|/opt/myapp|',
+            text_mode => 0, pad_str => "/");
+    };
+
+    my $result = read_file($f);
+
+    is(length($result), length($data), 'pad_str regex: file size unchanged');
+    like($result, qr{/opt/myapp/+}, 'pad_str regex: new path present, slash-padded');
+
+    my $path_start = index($result, "/opt/myapp");
+    my $segment    = substr($result, $path_start, length($path));
+    ok(index($segment, "\x00") == -1, 'pad_str regex: no NUL within patched segment');
 }
 
 # ---------------------------------------------------------------------------

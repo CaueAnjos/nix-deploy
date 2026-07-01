@@ -24,6 +24,8 @@
       test-bundle = pkgs.deployTools.mkBundle {
         drv = pkgs.hello;
       };
+
+      test-compact = pkgs.deployTools.mkCompactClosure pkgs.hello;
     };
 
     overlayAttrs = {
