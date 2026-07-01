@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use FindBin qw($RealBin);
 use lib "$RealBin/../lib";
-use Test::More tests => 24;
+use Test::More tests => 34;
 
 use Patcher::Binary qw(
     build_literal_patches
@@ -11,6 +11,7 @@ use Patcher::Binary qw(
     apply_patches
 );
 use Patcher::Regex  qw(parse_subst);
+use Patcher::Find   qw(locate_printable_strings);
 
 # ---------------------------------------------------------------------------
 # Helper: build a binary buffer with a known printable string
@@ -43,6 +44,40 @@ sub make_binary {
     my $idx_com = index($p->{new}, ".com");
     ok($idx_com < $idx_nul || $idx_nul == -1,
        'NUL padding comes after .com, not before it');
+}
+
+# ---------------------------------------------------------------------------
+# build_literal_patches — binary mode with pad_str => "/" (path-safe fill)
+#
+# Regression test for the "Perl SV / Ruby RString" bug: when a shorter
+# replacement is padded with NUL, readers that track an explicit string
+# length (rather than relying on NUL-termination) end up with a truncated
+# "logical" string followed by literal NUL bytes. Padding with a printable,
+# path-neutral filler like "/" avoids introducing that discrepancy: the
+# patched region stays entirely printable ASCII, so a naive length-based
+# reader and a NUL-terminated reader agree on the content.
+# ---------------------------------------------------------------------------
+
+{
+    my $str  = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-perl-5.36.0";
+    my $data = make_binary($str);
+    my @patches = build_literal_patches($data, $str, "/opt/myapp", 0, "/");
+    is(scalar @patches, 1, 'pad_str literal: one patch object');
+
+    my $p = $patches[0];
+    is(length($p->{new}), length($p->{old}), 'pad_str literal: length preserved');
+    ok(index($p->{new}, "\x00") == -1, 'pad_str literal: no NUL introduced');
+    like($p->{new}, qr{^/opt/myapp/+$}, 'pad_str literal: padded with trailing slashes');
+
+    # Re-scanning the patched buffer as printable-ASCII runs should report
+    # the SAME run length as before patching — i.e. no apparent truncation
+    # for any consumer that infers length from the printable run itself.
+    my ($new_data) = apply_patches($data, \@patches, 0);
+    my @orig_runs  = locate_printable_strings($data);
+    my @new_runs   = locate_printable_strings($new_data);
+    is($new_runs[0]{text}, $p->{new}, 'pad_str literal: patched run matches patch');
+    is(length($new_runs[0]{text}), length($orig_runs[0]{text}),
+       'pad_str literal: printable run length unchanged after patch');
 }
 
 # ---------------------------------------------------------------------------
@@ -106,6 +141,23 @@ sub make_binary {
     my $idx_com = index($p->{new}, ".com");
     ok($idx_com < $idx_nul || $idx_nul == -1,
        'regex binary: NUL at tail, not mid-string');
+}
+
+# ---------------------------------------------------------------------------
+# build_regex_patches — binary mode with pad_str => "/" (path-safe fill)
+# ---------------------------------------------------------------------------
+
+{
+    my $str  = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-perl-5.36.0";
+    my $data = make_binary($str);
+    my $subst = parse_subst('s|/nix/store/[a-z0-9]+-perl-5\.36\.0|/opt/myapp|');
+    my @patches = build_regex_patches($data, $subst, 0, "/");
+    is(scalar @patches, 1, 'pad_str regex: one patch object');
+
+    my $p = $patches[0];
+    is(length($p->{new}), length($p->{old}), 'pad_str regex: length preserved');
+    ok(index($p->{new}, "\x00") == -1, 'pad_str regex: no NUL introduced');
+    like($p->{new}, qr{^/opt/myapp/+$}, 'pad_str regex: padded with trailing slashes');
 }
 
 # ---------------------------------------------------------------------------

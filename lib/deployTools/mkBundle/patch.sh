@@ -141,8 +141,16 @@ patch_elf() {
 # patch_strings <file>
 #
 # Replaces nix store path prefixes with $INSTALL_PREFIX.
-# Text files: --text mode (no NUL-padding, size may change).
-# Binary files: NUL-padded replacement (offsets stay stable).
+# Text files: --text mode (no padding, size may change).
+# Binary files: slash-padded replacement (offsets stay stable, size does not
+# change). We explicitly use --pad-str '/' instead of the default NUL fill:
+# NUL padding corrupts strings for runtimes that store an explicit string
+# length instead of relying on NUL-termination (e.g. Perl SVs, Ruby
+# RStrings) — such readers happily read past the intended end of the
+# shortened path and pick up the raw NUL bytes as part of the string,
+# breaking module/library lookups. Padding with "/" instead keeps the
+# patched bytes entirely printable and the extra path separators are
+# semantically harmless for directory-style paths.
 # ---------------------------------------------------------------------------
 patch_strings() {
     local item
@@ -165,7 +173,7 @@ patch_strings() {
     if file "$item" | grep -q 'text'; then
         patchstrings --text --regex "s|${NIX_STORE_REGEX}|${INSTALL_PREFIX}|g" "$item"
     else
-        patchstrings --regex "s|${NIX_STORE_REGEX}|${INSTALL_PREFIX}|g" "$item"
+        patchstrings --pad-str '/' --regex "s|${NIX_STORE_REGEX}|${INSTALL_PREFIX}|g" "$item"
     fi
 }
 

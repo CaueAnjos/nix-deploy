@@ -39,10 +39,11 @@ sub run {
     my $text_mode  = 0;
     my $dry_run    = 0;
     my $verbose    = 0;
+    my $pad_str    = "\x00";
     my $patch_expr;
 
-    # Manual flag scan so we can grab --regex's argument inline.
-    while (@ARGV && $ARGV[0] =~ /^--(regex|text|dry-run|verbose)$/) {
+    # Manual flag scan so we can grab --regex's/--pad-str's argument inline.
+    while (@ARGV && $ARGV[0] =~ /^--(regex|text|dry-run|verbose|pad-str)$/) {
         my $flag = shift @ARGV;
         if ($flag eq '--regex') {
             $use_regex  = 1;
@@ -54,6 +55,10 @@ sub run {
             $dry_run = 1;
         } elsif ($flag eq '--verbose') {
             $verbose = 1;
+        } elsif ($flag eq '--pad-str') {
+            $pad_str = shift @ARGV;
+            die_err("--pad-str requires a non-empty string argument")
+                unless defined $pad_str && length $pad_str;
         }
     }
 
@@ -61,6 +66,7 @@ sub run {
         text_mode => $text_mode,
         dry_run   => $dry_run,
         verbose   => $verbose,
+        pad_str   => $pad_str,
     );
 
     # -----------------------------------------------------------------------
@@ -81,9 +87,16 @@ sub run {
     unless (defined $old && defined $new && defined $file) {
         die_err(
             "usage:\n"
-          . "  patcher.pl <old> <new> <file>\n"
-          . "  patcher.pl [--text] [--dry-run] [--verbose] --regex 's|PAT|REP|flags' <file>\n"
-          . "  patcher.pl --find <regex> <path>"
+          . "  patcher.pl [--pad-str <s>] <old> <new> <file>\n"
+          . "  patcher.pl [--text] [--dry-run] [--verbose] [--pad-str <s>] --regex 's|PAT|REP|flags' <file>\n"
+          . "  patcher.pl --find <regex> <path>\n"
+          . "\n"
+          . "  --pad-str <s>  binary mode only: repeat <s> (default NUL) to fill the\n"
+          . "                 gap left by a shorter replacement. Use a printable,\n"
+          . "                 semantically-neutral value (e.g. '/' for path-like\n"
+          . "                 strings) to avoid corrupting runtimes that store an\n"
+          . "                 explicit string length (Perl SVs, Ruby RStrings, etc.)\n"
+          . "                 instead of relying on NUL-termination."
         );
     }
 

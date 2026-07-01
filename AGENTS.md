@@ -21,3 +21,4 @@
 ## Gotchas
 - The closure helper reads a plain-text path list; avoid generating non-store paths. If you need to tweak ordering, adjust at the source (references generator) rather than post-processing.
 - Because `mkBundle` copies the `compactClosure` output during `configurePhase`, any mutation you do afterward (e.g. patching files) must happen under `final/`.
+- `lib/deployTools/mkBundle/patch.sh`'s binary-mode `patch_strings()` pass must keep passing `--pad-str '/'` to `patchstrings`; the default NUL padding corrupts store-path references for interpreted languages that track explicit string lengths (Perl SVs, Ruby RStrings, etc.). Don't let this regress back to default padding.

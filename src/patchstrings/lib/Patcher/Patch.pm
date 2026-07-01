@@ -14,7 +14,8 @@ our @EXPORT_OK = qw(patch_literal patch_regex);
 # patch_literal($file, $old, $new, %opts) -> $count
 #
 # Applies a literal string replacement.
-# Options: text_mode (bool), dry_run (bool), verbose (bool).
+# Options: text_mode (bool), dry_run (bool), verbose (bool), pad_str (string,
+# default "\x00" — repeated to fill binary-mode padding; see Binary.pm).
 # ---------------------------------------------------------------------------
 sub patch_literal {
     my ($file, $old, $new, %opts) = @_;
@@ -22,9 +23,10 @@ sub patch_literal {
     my $text_mode = $opts{text_mode} // 0;
     my $dry_run   = $opts{dry_run}   // 0;
     my $verbose   = $opts{verbose}   // 0;
+    my $pad_str   = $opts{pad_str}   // "\x00";
 
     my $data    = read_file($file);
-    my @patches = build_literal_patches($data, $old, $new, $text_mode);
+    my @patches = build_literal_patches($data, $old, $new, $text_mode, $pad_str);
 
     if (!@patches) {
         warn_err("'$old' not found in '$file'");
@@ -53,7 +55,8 @@ sub patch_literal {
 # patch_regex($file, $expr, %opts) -> $count
 #
 # Applies a s/// substitution expression.
-# Options: text_mode (bool), dry_run (bool), verbose (bool).
+# Options: text_mode (bool), dry_run (bool), verbose (bool), pad_str (string,
+# default "\x00" — repeated to fill binary-mode padding; see Binary.pm).
 # ---------------------------------------------------------------------------
 sub patch_regex {
     my ($file, $expr, %opts) = @_;
@@ -61,10 +64,11 @@ sub patch_regex {
     my $text_mode = $opts{text_mode} // 0;
     my $dry_run   = $opts{dry_run}   // 0;
     my $verbose   = $opts{verbose}   // 0;
+    my $pad_str   = $opts{pad_str}   // "\x00";
 
     my $subst   = parse_subst($expr);
     my $data    = read_file($file);
-    my @patches = build_regex_patches($data, $subst, $text_mode);
+    my @patches = build_regex_patches($data, $subst, $text_mode, $pad_str);
 
     if (!@patches) {
         warn_err("pattern matched nothing in '$file'");

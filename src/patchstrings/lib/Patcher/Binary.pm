@@ -15,13 +15,37 @@ our @EXPORT_OK = qw(
 );
 
 # ---------------------------------------------------------------------------
-# _make_patch($offset, $old, $new, $text_mode) -> \%patch  or  undef
+# _fill($pad_str, $n) -> string of exactly $n bytes
 #
-# Creates a patch object and NUL-pads $new to match len($old) unless in
-# text mode.  Returns undef if the replacement is too long in binary mode.
+# Repeats (and truncates) $pad_str to fill exactly $n bytes. Used to pad the
+# tail of a shortened binary-mode replacement so the enclosing string keeps
+# its original byte length.
+# ---------------------------------------------------------------------------
+sub _fill {
+    my ($pad_str, $n) = @_;
+    return '' if $n <= 0;
+    my $len = length($pad_str);
+    return substr($pad_str x (int($n / $len) + 1), 0, $n);
+}
+
+# ---------------------------------------------------------------------------
+# _make_patch($offset, $old, $new, $text_mode, $pad_str) -> \%patch  or  undef
+#
+# Creates a patch object and pads $new to match len($old) unless in text
+# mode, by repeating $pad_str (default "\x00", i.e. NUL padding) to fill the
+# gap. Returns undef if the replacement is too long in binary mode.
+#
+# $pad_str matters for runtimes that store an explicit string length rather
+# than relying on NUL-termination (e.g. Perl SVs, Ruby RStrings): padding
+# with "\x00" leaves stale bytes inside the "logical" length these readers
+# use, corrupting the string. Passing a printable, semantically-neutral
+# pad_str (e.g. "/" for path-like strings) avoids that, at the cost of only
+# being safe for strings where the filler bytes are harmless (e.g. trailing
+# path separators).
 # ---------------------------------------------------------------------------
 sub _make_patch {
-    my ($offset, $old, $new, $text_mode) = @_;
+    my ($offset, $old, $new, $text_mode, $pad_str) = @_;
+    $pad_str = "\x00" unless defined $pad_str && length $pad_str;
 
     my $len_old = length($old);
     my $len_new = length($new);
@@ -32,7 +56,7 @@ sub _make_patch {
 
     my $padded_new = $text_mode
         ? $new
-        : $new . ("\x00" x ($len_old - $len_new));
+        : $new . _fill($pad_str, $len_old - $len_new);
 
     return {
         offset => $offset,
@@ -43,14 +67,18 @@ sub _make_patch {
 }
 
 # ---------------------------------------------------------------------------
-# build_literal_patches($data, $old, $new, $text_mode) -> @patches
+# build_literal_patches($data, $old, $new, $text_mode, $pad_str) -> @patches
 #
 # In text mode: simple string replacement anywhere in $data.
-# In binary mode: only replace within printable-ASCII runs so that NUL
-# padding lands at the END of the enclosing string, not inside it.
+# In binary mode: only replace within printable-ASCII runs so that padding
+# lands at the END of the enclosing string, not inside it. $pad_str (default
+# "\x00") is repeated to fill the gap left by a shorter replacement; pass a
+# printable, semantically-neutral value (e.g. "/" for path-like strings) to
+# avoid corrupting runtimes that store an explicit string length instead of
+# relying on NUL-termination.
 # ---------------------------------------------------------------------------
 sub build_literal_patches {
-    my ($data, $old, $new, $text_mode) = @_;
+    my ($data, $old, $new, $text_mode, $pad_str) = @_;
 
     my $len_old = length($old);
     my $len_new = length($new);
@@ -81,11 +109,11 @@ sub build_literal_patches {
 
         while (($inner = index($text, $old, $inner)) != -1) {
             # Patch object covers the whole enclosing printable run so that
-            # NUL bytes accumulate at the end of the string, not mid-string.
+            # pad bytes accumulate at the end of the string, not mid-string.
             my $patched_run = $text;
             substr($patched_run, $inner, $len_old) = $new;
 
-            my $patch = _make_patch($base, $text, $patched_run, 0);
+            my $patch = _make_patch($base, $text, $patched_run, 0, $pad_str);
             unless (defined $patch) {
                 die_err("replacement makes string longer than original "
                       . "(use --text to allow size changes)");
@@ -101,15 +129,16 @@ sub build_literal_patches {
 }
 
 # ---------------------------------------------------------------------------
-# build_regex_patches($data, $subst, $text_mode) -> @patches
+# build_regex_patches($data, $subst, $text_mode, $pad_str) -> @patches
 #
 # $subst is the hashref returned by Patcher::Regex::parse_subst().
 #
 # In text mode: apply the regex to the whole buffer.
-# In binary mode: apply per printable-ASCII run, padding the run's tail.
+# In binary mode: apply per printable-ASCII run, padding the run's tail with
+# $pad_str (default "\x00"; see build_literal_patches for rationale).
 # ---------------------------------------------------------------------------
 sub build_regex_patches {
-    my ($data, $subst, $text_mode) = @_;
+    my ($data, $subst, $text_mode, $pad_str) = @_;
 
     my $re          = $subst->{re};
     my $replacement = $subst->{replacement};
@@ -147,7 +176,7 @@ sub build_regex_patches {
             # Replace only this one occurrence (by position) to avoid double-patching.
             substr($patched, $-[0], length($matched)) = $rep;
 
-            my $patch = _make_patch($base, $text, $patched, 0);
+            my $patch = _make_patch($base, $text, $patched, 0, $pad_str);
             unless (defined $patch) {
                 die_err("replacement '$rep' (len " . length($rep) . ") is longer than "
                       . "match '$matched' (len " . length($matched) . "); "
@@ -171,7 +200,7 @@ sub build_regex_patches {
                 $rep
             }ge if $global;
 
-            my $patch = _make_patch($base, $text, $patched, 0);
+            my $patch = _make_patch($base, $text, $patched, 0, $pad_str);
             unless (defined $patch) {
                 die_err("collapsed replacement for run is longer than original; "
                       . "cannot patch binary safely (use --text to allow size changes)");
