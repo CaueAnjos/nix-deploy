@@ -40,10 +40,12 @@ sub run {
     my $dry_run    = 0;
     my $verbose    = 0;
     my $pad_str    = "\x00";
+    my $fill_str;
     my $patch_expr;
 
-    # Manual flag scan so we can grab --regex's/--pad-str's argument inline.
-    while (@ARGV && $ARGV[0] =~ /^--(regex|text|dry-run|verbose|pad-str)$/) {
+    # Manual flag scan so we can grab --regex's/--pad-str's/--fill-str's
+    # argument inline.
+    while (@ARGV && $ARGV[0] =~ /^--(regex|text|dry-run|verbose|pad-str|fill-str)$/) {
         my $flag = shift @ARGV;
         if ($flag eq '--regex') {
             $use_regex  = 1;
@@ -59,14 +61,26 @@ sub run {
             $pad_str = shift @ARGV;
             die_err("--pad-str requires a non-empty string argument")
                 unless defined $pad_str && length $pad_str;
+            die_err("--pad-str must be exactly one character")
+                unless length($pad_str) == 1;
+        } elsif ($flag eq '--fill-str') {
+            $fill_str = shift @ARGV;
+            die_err("--fill-str requires a non-empty string argument")
+                unless defined $fill_str && length $fill_str;
+            die_err("--fill-str must be exactly one character")
+                unless length($fill_str) == 1;
         }
     }
+
+    die_err("--pad-str and --fill-str are mutually exclusive; specify only one")
+        if defined $fill_str && $pad_str ne "\x00";
 
     my %common = (
         text_mode => $text_mode,
         dry_run   => $dry_run,
         verbose   => $verbose,
         pad_str   => $pad_str,
+        fill_str  => $fill_str,
     );
 
     # -----------------------------------------------------------------------
@@ -87,16 +101,22 @@ sub run {
     unless (defined $old && defined $new && defined $file) {
         die_err(
             "usage:\n"
-          . "  patcher.pl [--pad-str <s>] <old> <new> <file>\n"
-          . "  patcher.pl [--text] [--dry-run] [--verbose] [--pad-str <s>] --regex 's|PAT|REP|flags' <file>\n"
-          . "  patcher.pl --find <regex> <path>\n"
+          . "  patchstrings [--pad-str <s>|--fill-str <s>] <old> <new> <file>\n"
+          . "  patchstrings [--text] [--dry-run] [--verbose] [--pad-str <s>|--fill-str <s>] --regex 's|PAT|REP|flags' <file>\n"
+          . "  patchstrings --find <regex> <path>\n"
           . "\n"
-          . "  --pad-str <s>  binary mode only: repeat <s> (default NUL) to fill the\n"
-          . "                 gap left by a shorter replacement. Use a printable,\n"
-          . "                 semantically-neutral value (e.g. '/' for path-like\n"
-          . "                 strings) to avoid corrupting runtimes that store an\n"
-          . "                 explicit string length (Perl SVs, Ruby RStrings, etc.)\n"
-          . "                 instead of relying on NUL-termination."
+          . "  --pad-str <s>   binary mode only, 1 character: repeat <s> (default NUL)\n"
+          . "                  to fill the gap left by a shorter replacement, at the\n"
+          . "                  TAIL of the enclosing printable-ASCII run. Use a\n"
+          . "                  printable, semantically-neutral value (e.g. '/' for\n"
+          . "                  path-like strings) to avoid corrupting runtimes that\n"
+          . "                  store an explicit string length (Perl SVs, Ruby\n"
+          . "                  RStrings, etc.) instead of relying on NUL-termination.\n"
+          . "  --fill-str <s>  binary mode only, 1 character: like --pad-str, but the\n"
+          . "                  fill is inserted LOCALLY at the match site (right after\n"
+          . "                  the replacement), before any unchanged suffix that\n"
+          . "                  follows it in the same run, instead of at the run's\n"
+          . "                  tail. Mutually exclusive with --pad-str."
         );
     }
 

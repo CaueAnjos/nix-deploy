@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use FindBin qw($RealBin);
 use lib "$RealBin/../lib";
-use Test::More tests => 34;
+use Test::More tests => 44;
 
 use Patcher::Binary qw(
     build_literal_patches
@@ -158,6 +158,65 @@ sub make_binary {
     is(length($p->{new}), length($p->{old}), 'pad_str regex: length preserved');
     ok(index($p->{new}, "\x00") == -1, 'pad_str regex: no NUL introduced');
     like($p->{new}, qr{^/opt/myapp/+$}, 'pad_str regex: padded with trailing slashes');
+}
+
+# ---------------------------------------------------------------------------
+# build_literal_patches — binary mode with fill_str => "/" (local fill, not
+# tail padding)
+#
+# Unlike pad_str, which pads at the tail of the WHOLE enclosing run, fill_str
+# closes the gap immediately at the match site, before any unchanged suffix
+# that follows within the same run.
+# ---------------------------------------------------------------------------
+
+{
+    my $old  = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-hello";
+    my $data = make_binary($old . "/bin/hello");
+    my @patches = build_literal_patches($data, $old, "/opt/hello", 0, undef, "/");
+    is(scalar @patches, 1, 'fill_str literal: one patch object');
+
+    my $p = $patches[0];
+    is(length($p->{new}), length($p->{old}), 'fill_str literal: length preserved');
+    unlike($p->{new}, qr/\x00/, 'fill_str literal: no NUL introduced');
+    like($p->{new}, qr{^/opt/hello/+bin/hello$},
+        'fill_str literal: fill lands between replacement and suffix, not at tail');
+}
+
+# ---------------------------------------------------------------------------
+# build_regex_patches — binary mode with fill_str => "/" (local fill)
+# ---------------------------------------------------------------------------
+
+{
+    my $old  = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-hello";
+    my $data = make_binary($old . "/bin/hello");
+    my $subst = parse_subst('s|/nix/store/[a-z0-9]+-hello|/opt/hello|');
+    my @patches = build_regex_patches($data, $subst, 0, undef, "/");
+    is(scalar @patches, 1, 'fill_str regex: one patch object');
+
+    my $p = $patches[0];
+    is(length($p->{new}), length($p->{old}), 'fill_str regex: length preserved');
+    like($p->{new}, qr{^/opt/hello/+bin/hello$},
+        'fill_str regex: fill lands between replacement and suffix, not at tail');
+}
+
+# ---------------------------------------------------------------------------
+# build_regex_patches — fill_str with multiple matches in one run
+#
+# Each match is padded locally, preserving the boundary with whatever
+# immediately follows it, instead of accumulating all the slack at the tail
+# of the run (as pad_str would).
+# ---------------------------------------------------------------------------
+
+{
+    my $data = make_binary("OLDxOLDy");
+    my $subst = parse_subst('s|OLD|N|g');
+    my @patches = build_regex_patches($data, $subst, 0, undef, "Z");
+    is(scalar @patches, 1, 'fill_str regex multi-match: one collapsed patch object');
+
+    my $p = $patches[0];
+    is(length($p->{new}), length($p->{old}), 'fill_str regex multi-match: length preserved');
+    is($p->{new}, "NZZxNZZy",
+        'fill_str regex multi-match: each match padded locally, boundaries preserved');
 }
 
 # ---------------------------------------------------------------------------

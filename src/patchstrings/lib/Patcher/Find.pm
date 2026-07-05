@@ -56,7 +56,7 @@ sub run_find {
 
     unless (defined $regex_str && length $regex_str
          && defined $path      && length $path) {
-        die_err("usage: patcher.pl --find <regex> <path>");
+        die_err("usage: patchstrings --find <regex> <path>");
     }
 
     my $re = eval { qr/$regex_str/ };

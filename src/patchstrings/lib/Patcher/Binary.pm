@@ -15,17 +15,17 @@ our @EXPORT_OK = qw(
 );
 
 # ---------------------------------------------------------------------------
-# _fill($pad_str, $n) -> string of exactly $n bytes
+# _fill($str, $n) -> string of exactly $n bytes
 #
-# Repeats (and truncates) $pad_str to fill exactly $n bytes. Used to pad the
-# tail of a shortened binary-mode replacement so the enclosing string keeps
-# its original byte length.
+# Repeats (and truncates) $str to fill exactly $n bytes. Shared by both the
+# pad_str (tail-of-run padding, see _make_patch) and fill_str (local, at the
+# match site — see build_literal_patches/build_regex_patches) mechanisms.
 # ---------------------------------------------------------------------------
 sub _fill {
-    my ($pad_str, $n) = @_;
+    my ($str, $n) = @_;
     return '' if $n <= 0;
-    my $len = length($pad_str);
-    return substr($pad_str x (int($n / $len) + 1), 0, $n);
+    my $len = length($str);
+    return substr($str x (int($n / $len) + 1), 0, $n);
 }
 
 # ---------------------------------------------------------------------------
@@ -67,7 +67,8 @@ sub _make_patch {
 }
 
 # ---------------------------------------------------------------------------
-# build_literal_patches($data, $old, $new, $text_mode, $pad_str) -> @patches
+# build_literal_patches($data, $old, $new, $text_mode, $pad_str, $fill_str)
+#   -> @patches
 #
 # In text mode: simple string replacement anywhere in $data.
 # In binary mode: only replace within printable-ASCII runs so that padding
@@ -76,9 +77,17 @@ sub _make_patch {
 # printable, semantically-neutral value (e.g. "/" for path-like strings) to
 # avoid corrupting runtimes that store an explicit string length instead of
 # relying on NUL-termination.
+#
+# $fill_str, if defined, changes WHERE the gap is filled: instead of padding
+# the tail of the whole enclosing run (pad_str), the fill characters are
+# inserted immediately at the match site, before any unchanged suffix that
+# follows it in the same run. E.g. for "/nix/store/xxx-hello/bin/hello"
+# patched to "/opt/hello": pad_str => "/opt/hello/bin/hello//////"
+# (padding at the very end) vs. fill_str => "/opt/hello/////////bin/hello"
+# (padding right after the replacement, before "/bin/hello").
 # ---------------------------------------------------------------------------
 sub build_literal_patches {
-    my ($data, $old, $new, $text_mode, $pad_str) = @_;
+    my ($data, $old, $new, $text_mode, $pad_str, $fill_str) = @_;
 
     my $len_old = length($old);
     my $len_new = length($new);
@@ -109,9 +118,18 @@ sub build_literal_patches {
 
         while (($inner = index($text, $old, $inner)) != -1) {
             # Patch object covers the whole enclosing printable run so that
-            # pad bytes accumulate at the end of the string, not mid-string.
+            # pad bytes accumulate at the end of the string, not mid-string
+            # (unless fill_str is given — see below).
+            my $rep = $new;
+            if (defined $fill_str) {
+                # Close the gap right at the match site so the unchanged
+                # suffix that follows stays immediately after the fill,
+                # instead of drifting to the tail of the whole run.
+                $rep = $new . _fill($fill_str, $len_old - $len_new);
+            }
+
             my $patched_run = $text;
-            substr($patched_run, $inner, $len_old) = $new;
+            substr($patched_run, $inner, $len_old) = $rep;
 
             my $patch = _make_patch($base, $text, $patched_run, 0, $pad_str);
             unless (defined $patch) {
@@ -129,16 +147,24 @@ sub build_literal_patches {
 }
 
 # ---------------------------------------------------------------------------
-# build_regex_patches($data, $subst, $text_mode, $pad_str) -> @patches
+# build_regex_patches($data, $subst, $text_mode, $pad_str, $fill_str)
+#   -> @patches
 #
 # $subst is the hashref returned by Patcher::Regex::parse_subst().
 #
 # In text mode: apply the regex to the whole buffer.
 # In binary mode: apply per printable-ASCII run, padding the run's tail with
-# $pad_str (default "\x00"; see build_literal_patches for rationale).
+# $pad_str (default "\x00"; see build_literal_patches for rationale), unless
+# $fill_str is given — then each match is padded locally, right after its
+# own replacement, instead of accumulating at the run's tail. This matters
+# in particular when a single run contains multiple concatenated matches
+# (e.g. several nix-store references with no separator between them): local
+# fill keeps each match's slack next to itself, preserving the boundary with
+# whatever follows, rather than pushing all the slack to the very end of the
+# run.
 # ---------------------------------------------------------------------------
 sub build_regex_patches {
-    my ($data, $subst, $text_mode, $pad_str) = @_;
+    my ($data, $subst, $text_mode, $pad_str, $fill_str) = @_;
 
     my $re          = $subst->{re};
     my $replacement = $subst->{replacement};
@@ -171,6 +197,11 @@ sub build_regex_patches {
             my $matched = $&;
             my $rep     = expand_replacement($replacement, $1,$2,$3,$4,$5,$6,$7,$8,$9);
 
+            if (defined $fill_str) {
+                my $gap = length($matched) - length($rep);
+                $rep .= _fill($fill_str, $gap) if $gap > 0;
+            }
+
             # Build a patched copy of the whole run.
             my $patched = $text;
             # Replace only this one occurrence (by position) to avoid double-patching.
@@ -197,6 +228,10 @@ sub build_regex_patches {
                 my $matched = $&;
                 my $rep     = expand_replacement($replacement, $1,$2,$3,$4,$5,$6,$7,$8,$9);
                 $count++;
+                if (defined $fill_str) {
+                    my $gap = length($matched) - length($rep);
+                    $rep .= _fill($fill_str, $gap) if $gap > 0;
+                }
                 $rep
             }ge if $global;
 
