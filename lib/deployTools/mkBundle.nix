@@ -15,9 +15,7 @@
     if stdenv.is64bit
     then "${installPrefix}/lib64/ld-linux-x86-64.so.2"
     else "${installPrefix}/lib/ld-linux.so.2",
-  rpath ? "/lib",
   patchScript ? ./mkBundle/patch.sh,
-  absolute ? false,
   compactClosure ? deployTools.mkCompactClosure drv,
   ...
 } @ args: let
@@ -34,8 +32,6 @@ in
 
       INSTALL_PREFIX = installPrefix;
       INTERPRETER = interpreter;
-      RPATH = rpath;
-      ABSOLUTE = absolute;
 
       PATCH_SCRIPT = patchScript;
 
