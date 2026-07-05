@@ -29,7 +29,7 @@ SKIP: {
     my ($fh2, $fname2) = tempfile(UNLINK => 1);
     close $fh2;
     chmod 0000, $fname2;
-    eval { validate_target($fname2) };
+    eval { validate_target($fname2, "r") };
     like($@, qr/\[error\].*not readable/, 'validate_target dies on unreadable file');
     chmod 0644, $fname2;
 }
@@ -40,7 +40,7 @@ SKIP: {
     my ($fh3, $fname3) = tempfile(UNLINK => 1);
     close $fh3;
     chmod 0444, $fname3;
-    eval { validate_target($fname3) };
+    eval { validate_target($fname3, "w") };
     like($@, qr/\[error\].*not writable/, 'validate_target dies on read-only file');
     chmod 0644, $fname3;
 }
