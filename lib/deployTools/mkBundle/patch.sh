@@ -8,15 +8,6 @@ set -euo pipefail
 #   INSTALL_PREFIX - replacement root for /nix/store/<hash>-<name> in strings
 #                    and used as the absolute target tree root for $ORIGIN
 #                    computation in relative mode
-#
-# Mode (mutually exclusive intent):
-#   ABSOLUTE=1     - set rpath entries to $RPATH (must also set RPATH)
-#   (unset)        - compute $ORIGIN-relative paths from each nix store
-#                    entry's subpath, rooted at $INSTALL_PREFIX in the output
-#                    tree; $RPATH is not used in this mode
-#
-# Optional (absolute mode only):
-#   RPATH          - absolute rpath to stamp on every ELF (ABSOLUTE mode)
 # ---------------------------------------------------------------------------
 
 NIX_STRING_REGEX="/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9+._?=-]+"
@@ -28,11 +19,9 @@ NIX_STORE_REGEX="(?:${NIX_STRING_REGEX})+"
 # - Skips non-ELF and non-dynamic files
 # - Only patches EXEC and DYN types
 # - Computes new rpath per entry:
-#     absolute mode : every nix store entry → $RPATH
-#     relative mode : every nix store entry → $ORIGIN/<rel to subpath in output tree>
+#     relative mode : every nix store entry → $INSTALL_PREFIX/<subpath in output tree>
 #   Non-nix entries are kept as-is. Result is deduplicated.
-# - Sets interpreter (absolute) only when .interp section is present
-# ---------------------------------------------------------------------------
+# - Sets interpreter (absolute) only when .interp section is present ---------------------------------------------------------------------------
 patch_elf() {
     local item
     item=$(realpath "$1")
@@ -66,32 +55,12 @@ patch_elf() {
         while IFS= read -r entry; do
             [[ -z "$entry" ]] && continue
 
-            if [[ "$entry" =~ ^/nix/store/[a-z0-9]{32}-[^/]+(/.*)?$ ]]; then
-                if [[ -n "${ABSOLUTE:-}" ]]; then
-                    # Absolute mode: stamp the configured RPATH directly
-                    new_entry="$RPATH"
-                else
-                    # Relative mode: derive $ORIGIN path from the subpath that
-                    # follows the nix store package root in this entry.
-                    #
-                    # Example:
-                    #   entry    = /nix/store/abc...-glibc-2.38/lib
-                    #   subpath  = /lib
-                    #   item     = ./bin/foo
-                    #   target   = ./lib  (where the lib actually lives during build)
-                    #   relative = ../lib  (from ./bin/ to ./lib)
-                    #   result   = $ORIGIN/../lib
-                    local subpath="${BASH_REMATCH[1]}" # may be empty for pkg root
-                    local item_dir
-                    item_dir=$(dirname "$item")
-                    local target_abs="${subpath}"
-                    local rel
-                    rel=$(realpath --relative-to="$item_dir" "$target_abs" 2>/dev/null ||
-                        echo "${subpath#/}")
-                    new_entry="\$ORIGIN/${rel}"
-                fi
+            local pattern="$NIX_STRING_REGEX/?(.*)"
+
+            if [[ "$entry" =~ $pattern ]]; then
+                local subpath="${BASH_REMATCH[1]}"
+                new_entry="$INSTALL_PREFIX/$subpath"
             else
-                # Non-nix entry (system path, existing $ORIGIN entry, etc.): keep
                 new_entry="$entry"
             fi
 
@@ -111,16 +80,6 @@ patch_elf() {
         new_rpath="${seen_paths[*]+"${seen_paths[*]}"}"
     fi
 
-    # Fallback: binary had no rpath at all
-    if [[ -z "$new_rpath" ]]; then
-        if [[ -n "${ABSOLUTE:-}" ]]; then
-            new_rpath="$RPATH"
-        else
-            echo "warning: $item had no rpath and ABSOLUTE is not set — skipping rpath patch"
-            # still continue to handle interpreter below
-        fi
-    fi
-
     if [[ -n "$new_rpath" ]]; then
         patchelf --set-rpath "$new_rpath" "$item"
         echo "patched rpath $item:"
@@ -128,9 +87,6 @@ patch_elf() {
         echo "  new: $new_rpath"
     fi
 
-    # ------------------------------------------------------------------
-    # Interpreter — always absolute, only when .interp section exists
-    # ------------------------------------------------------------------
     if readelf -S "$item" | grep -q '\.interp'; then
         patchelf --set-interpreter "$INTERPRETER" "$item"
         echo "patched interpreter $item: $INTERPRETER"
