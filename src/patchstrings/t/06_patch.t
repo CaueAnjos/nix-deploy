@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use FindBin qw($RealBin);
 use lib "$RealBin/../lib";
-use Test::More tests => 26;
+use Test::More tests => 30;
 use File::Temp qw(tempfile);
 use Capture::Tiny qw(capture);
 
@@ -97,6 +97,26 @@ sub tmp_with {
 }
 
 # ---------------------------------------------------------------------------
+# patch_literal — binary mode with fill_str => "/" (local fill, not tail
+# padding): the gap lands right after the replacement, before the unchanged
+# "/bin/hello" suffix that follows it in the same run.
+# ---------------------------------------------------------------------------
+
+{
+    my $path = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-hello";
+    my $data = "\x01\x02" . $path . "/bin/hello" . "\x00" x 10 . "\x03\x04";
+    my $f    = tmp_with($data);
+
+    capture { patch_literal($f, $path, "/opt/hello", text_mode => 0, fill_str => "/") };
+
+    my $result = read_file($f);
+
+    is(length($result), length($data), 'fill_str literal: file size unchanged');
+    like($result, qr{/opt/hello/+bin/hello},
+        'fill_str literal: fill lands between replacement and suffix, not at tail');
+}
+
+# ---------------------------------------------------------------------------
 # patch_literal — no match warns, returns 0
 # ---------------------------------------------------------------------------
 
@@ -182,6 +202,28 @@ sub tmp_with {
     my $path_start = index($result, "/opt/myapp");
     my $segment    = substr($result, $path_start, length($path));
     ok(index($segment, "\x00") == -1, 'pad_str regex: no NUL within patched segment');
+}
+
+# ---------------------------------------------------------------------------
+# patch_regex — binary mode with fill_str => "/" (local fill, not tail
+# padding)
+# ---------------------------------------------------------------------------
+
+{
+    my $path = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-hello";
+    my $data = "\x01\x02" . $path . "/bin/hello" . "\x00" x 10 . "\x03\x04";
+    my $f    = tmp_with($data);
+
+    capture {
+        patch_regex($f, 's|/nix/store/[a-z0-9]+-hello|/opt/hello|',
+            text_mode => 0, fill_str => "/");
+    };
+
+    my $result = read_file($f);
+
+    is(length($result), length($data), 'fill_str regex: file size unchanged');
+    like($result, qr{/opt/hello/+bin/hello},
+        'fill_str regex: fill lands between replacement and suffix, not at tail');
 }
 
 # ---------------------------------------------------------------------------

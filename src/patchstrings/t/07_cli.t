@@ -2,7 +2,7 @@ use strict;
 use warnings;
 use FindBin qw($RealBin);
 use lib "$RealBin/../lib";
-use Test::More tests => 12;
+use Test::More tests => 18;
 use File::Temp qw(tempfile);
 use Capture::Tiny qw(capture);
 
@@ -72,6 +72,59 @@ sub tmp_with {
     my $f = tmp_with("hello world");
     eval { run(['--pad-str']) };
     like($@, qr/\[error\]/, '--pad-str without argument: dies');
+}
+
+# ---------------------------------------------------------------------------
+# --fill-str dispatch (binary mode, local fill)
+# ---------------------------------------------------------------------------
+
+{
+    my $path = "/nix/store/abcdefghijklmnopqrstuvwxyz0123456-hello";
+    my $data = "\x01\x02" . $path . "/bin/hello" . "\x00" x 10 . "\x03\x04";
+    my $f    = tmp_with($data);
+
+    capture { run(['--fill-str', '/', $path, '/opt/hello', $f]) };
+
+    my $result = read_file($f);
+    is(length($result), length($data), 'CLI --fill-str: file size unchanged');
+    like($result, qr{/opt/hello/+bin/hello},
+        'CLI --fill-str: fill lands between replacement and suffix, not at tail');
+}
+
+# ---------------------------------------------------------------------------
+# --fill-str without argument dies
+# ---------------------------------------------------------------------------
+
+{
+    eval { run(['--fill-str']) };
+    like($@, qr/\[error\]/, '--fill-str without argument: dies');
+}
+
+# ---------------------------------------------------------------------------
+# --pad-str / --fill-str longer than one character dies
+# ---------------------------------------------------------------------------
+
+{
+    my $f = tmp_with("hello world");
+    eval { run(['--pad-str', '//', 'a', 'b', $f]) };
+    like($@, qr/\[error\].*one character/, '--pad-str longer than one character: dies');
+}
+
+{
+    my $f = tmp_with("hello world");
+    eval { run(['--fill-str', '//', 'a', 'b', $f]) };
+    like($@, qr/\[error\].*one character/, '--fill-str longer than one character: dies');
+}
+
+# ---------------------------------------------------------------------------
+# --pad-str and --fill-str together dies
+# ---------------------------------------------------------------------------
+
+{
+    my $f = tmp_with("hello world");
+    eval { run(['--pad-str', '/', '--fill-str', '/', 'a', 'b', $f]) };
+    like($@, qr/\[error\].*mutually exclusive/,
+        '--pad-str and --fill-str together: dies');
 }
 
 # ---------------------------------------------------------------------------

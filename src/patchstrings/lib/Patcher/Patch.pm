@@ -15,7 +15,9 @@ our @EXPORT_OK = qw(patch_literal patch_regex);
 #
 # Applies a literal string replacement.
 # Options: text_mode (bool), dry_run (bool), verbose (bool), pad_str (string,
-# default "\x00" — repeated to fill binary-mode padding; see Binary.pm).
+# default "\x00" — repeated to fill binary-mode padding at the tail of the
+# enclosing run), fill_str (string, default undef — repeated to fill the gap
+# locally at the match site instead; see Binary.pm).
 # ---------------------------------------------------------------------------
 sub patch_literal {
     my ($file, $old, $new, %opts) = @_;
@@ -24,9 +26,10 @@ sub patch_literal {
     my $dry_run   = $opts{dry_run}   // 0;
     my $verbose   = $opts{verbose}   // 0;
     my $pad_str   = $opts{pad_str}   // "\x00";
+    my $fill_str  = $opts{fill_str};
 
     my $data    = read_file($file);
-    my @patches = build_literal_patches($data, $old, $new, $text_mode, $pad_str);
+    my @patches = build_literal_patches($data, $old, $new, $text_mode, $pad_str, $fill_str);
 
     if (!@patches) {
         warn_err("'$old' not found in '$file'");
@@ -56,7 +59,9 @@ sub patch_literal {
 #
 # Applies a s/// substitution expression.
 # Options: text_mode (bool), dry_run (bool), verbose (bool), pad_str (string,
-# default "\x00" — repeated to fill binary-mode padding; see Binary.pm).
+# default "\x00" — repeated to fill binary-mode padding at the tail of the
+# enclosing run), fill_str (string, default undef — repeated to fill the gap
+# locally at the match site instead; see Binary.pm).
 # ---------------------------------------------------------------------------
 sub patch_regex {
     my ($file, $expr, %opts) = @_;
@@ -65,10 +70,11 @@ sub patch_regex {
     my $dry_run   = $opts{dry_run}   // 0;
     my $verbose   = $opts{verbose}   // 0;
     my $pad_str   = $opts{pad_str}   // "\x00";
+    my $fill_str  = $opts{fill_str};
 
     my $subst   = parse_subst($expr);
     my $data    = read_file($file);
-    my @patches = build_regex_patches($data, $subst, $text_mode, $pad_str);
+    my @patches = build_regex_patches($data, $subst, $text_mode, $pad_str, $fill_str);
 
     if (!@patches) {
         warn_err("pattern matched nothing in '$file'");
