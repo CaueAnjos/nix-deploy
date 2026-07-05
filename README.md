@@ -201,11 +201,19 @@ produced, only that it contains the files to be patched.
   - `--text` — allow the file to grow or shrink (safe for plain text files).
   - Binary mode (the default, i.e. without `--text`) requires the replacement
     string to be **equal to or shorter than** the original; any gap left by a
-    shorter replacement is filled with a repeated `--pad-str
-    <string>`
-    (default `\x00`, i.e. NUL bytes). If a binary-mode replacement would be
-    _longer_ than the original, `patchstrings` refuses and exits with an error
-    instead of corrupting the file.
+    shorter replacement must be filled. For padding/filling, binary mode
+    supports:
+    - `--pad-str <char>` — fills the gap at the END of the entire enclosing
+      printable-ASCII run (default `\x00`, i.e. NUL bytes). The character
+      argument must be exactly 1 character.
+    - `--fill-str <char>` — fills the gap immediately AFTER each match,
+      before any unchanged suffix that follows it, locally within the run
+      (rather than at the tail). The character argument must be exactly 1
+      character.
+    - `--pad-str` and `--fill-str` are mutually exclusive.
+    - If a binary-mode replacement would be _longer_ than the original,
+      `patchstrings` refuses and exits with an error instead of corrupting
+      the file.
 - **`copyclosure`** (via `deployTools.mkCopyclosureCommand`) — generates a
   script that copies (rather than symlinks) every path in a derivation's closure
   into a target directory.
@@ -216,11 +224,12 @@ produced, only that it contains the files to be patched.
 > string length instead of relying on NUL-termination (for example Perl SVs or
 > Ruby RStrings). Those readers happily read past the shortened content and pick
 > up the raw `\0` bytes as part of the string. When patching path-like strings,
-> pass `--pad-str '/'` instead — the extra trailing separators are semantically
-> a no-op for directory-style paths. This is exactly what `mkBundle`'s
-> `patch.sh` does for its own binary-mode string patching pass
-> (`patchstrings --pad-str '/' --regex ...`), and that flag should not be
-> dropped in favor of the default padding.
+> use `--fill-str '/'` instead — the extra path separators are semantically a
+> no-op for directory-style paths, and filling locally (rather than at the tail)
+> matters when a single string run contains multiple concatenated store-path
+> references. This is exactly what `mkBundle`'s `patch.sh` does for its own
+> binary-mode string patching pass (`patchstrings --fill-str '/' --regex ...`),
+> and this choice should not be regressed to `--pad-str` or default padding.
 
 ## Limitations
 
@@ -235,10 +244,9 @@ produced, only that it contains the files to be patched.
   `/nix/store/<hash>-<name>` prefixes it replaces, or `mkBundle`'s patch pass
   will fail on some files.
 - **The NUL-padding caveat is real and easy to regress.** Default padding
-  (`\x00`) is only safe for plain, NUL-terminated strings. Anything that tracks
-  its own length (Perl SVs, Ruby RStrings, etc.) needs `--pad-str
-  '/'` or
-  equivalent — see the warning above.
+  (`\x00`) is only safe for plain, NUL-terminated strings. Anything that
+  tracks its own length (Perl SVs, Ruby RStrings, etc.) needs `--fill-str '/'`
+  or equivalent — see the warning above.
 - **`mkCompactClosure` filters on "is this a directory", nothing more.** It
   keeps only closure entries that are directories in the Nix store and drops
   everything else (empty lines, non-directory paths); it has no mechanism for
