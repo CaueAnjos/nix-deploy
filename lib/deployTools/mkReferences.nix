@@ -1,4 +1,7 @@
 {
+  lib,
+  patchelf,
+  patchstrings,
   referencesByPopularity,
   runCommand,
 }: {
@@ -8,6 +11,14 @@
   output ? "nix",
 }: let
   perMode = {
+    minimal =
+      lib.warnIf true "`minimal` mode isn't stable right now, prefere `runtime`"
+      (runCommand "minimal" {
+          nativeBuildInputs = [patchstrings patchelf];
+          DRV = drv;
+        }
+        (builtins.readFile ./../../src/references/minimaldeps.sh));
+
     runtime =
       runCommand "runtime" {
         nativeBuildInputs = [];
