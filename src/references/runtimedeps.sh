@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-out_path="$1"
+out_path="$out"
 : >"$out_path"
 
 candidates_file="$(mktemp)"
