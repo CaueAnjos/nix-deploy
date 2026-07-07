@@ -50,9 +50,8 @@ illustrate the pieces involved (see `packages/default.nix`):
   closure of `pkgs.hello` symlinked together into a single derivation.
 - `test-bundle` — `deployTools.mkBundle { drv = pkgs.hello; }`, the full
   relocated bundle built from that closure.
-- `hello-closure` — a closure of `pkgs.hello` copied (not symlinked) via
-  `deployTools.mkCopyclosureCommand`, restricted to the runtime dependencies
-  computed by `deployTools.mkRuntimeDeps`.
+- `test-closure` — `deployTools.mkClosure pkgs.hello`, the full closure of
+  `pkgs.hello` copied (not symlinked) into `$out/nix/store`.
 
 > [!TIP]
 > `nix build .#test-bundle` is a good smoke test after cloning the repo: it
@@ -98,16 +97,20 @@ already comes from nixpkgs itself; this flake re-exposes it under
 Once the overlay is applied, `pkgs.deployTools` exposes:
 
 - `deployTools.mkBundle` — the main bundling helper (see below).
+- `deployTools.mkReferences` — collects a derivation's closure; `mode = "full"`
+  uses `referencesByPopularity` for a popularity-sorted full closure,
+  `mode = "runtime"` (the default) computes only the actual runtime-reachable
+  subset via BFS through transitive dependencies, and `mode = "minimal"`
+  combines embedded-string scanning and ELF rpath/needed walking for a combined
+  scope. Takes `{ drv, reverse ? false, mode ? "runtime", output ? "nix" }`;
+  `reverse = true` reverses the line order. `output` changes the output style.
+  It can be `file` or `nix`.
 - `deployTools.mkCompactClosure` — dedupes a derivation's closure into a flat,
   symlinked directory.
 - `deployTools.mkClosure` — copies (rather than symlinks) a derivation's full
   closure into `$out/nix/store`.
-- `deployTools.mkRuntimeDeps` — computes just the runtime dependency subset of a
-  derivation's closure.
 - `deployTools.mkCopyclosureCommand` — builds a `copyclosure` script scoped to
   one derivation's references.
-- `deployTools.references` — a thin wrapper around nixpkgs'
-  `referencesByPopularity`.
 
 > [!NOTE]
 > `pkgs.patchstrings` is reliably available through the overlay because it's
@@ -121,9 +124,12 @@ Once the overlay is applied, `pkgs.deployTools` exposes:
 
 `mkBundle` is built on top of three smaller pieces, all part of `deployTools`:
 
-1. **`deployTools.references drv`** collects the derivation's closure using
-   nixpkgs' `referencesByPopularity`, producing a text file listing every store
-   path the derivation (transitively) references.
+1. **`deployTools.mkReferences { drv }`** collects the derivation's closure
+   using `mode = "runtime"` by default (transitive BFS over actual
+   runtime-reachable paths), or `mode = "full"` for the popularity-sorted full
+   closure via `referencesByPopularity`, or `mode = "minimal"` for combined
+   embedded-string and ELF rpath/needed scanning, producing a text file listing
+   store paths.
 2. **`deployTools.mkCompactClosure drv`** reads that file, drops empty lines,
    deduplicates the remaining paths, keeps only the ones that are directories in
    the store (`lib.pathIsDirectory`), and joins them together into one
@@ -206,14 +212,13 @@ produced, only that it contains the files to be patched.
     - `--pad-str <char>` — fills the gap at the END of the entire enclosing
       printable-ASCII run (default `\x00`, i.e. NUL bytes). The character
       argument must be exactly 1 character.
-    - `--fill-str <char>` — fills the gap immediately AFTER each match,
-      before any unchanged suffix that follows it, locally within the run
-      (rather than at the tail). The character argument must be exactly 1
-      character.
+    - `--fill-str <char>` — fills the gap immediately AFTER each match, before
+      any unchanged suffix that follows it, locally within the run (rather than
+      at the tail). The character argument must be exactly 1 character.
     - `--pad-str` and `--fill-str` are mutually exclusive.
     - If a binary-mode replacement would be _longer_ than the original,
-      `patchstrings` refuses and exits with an error instead of corrupting
-      the file.
+      `patchstrings` refuses and exits with an error instead of corrupting the
+      file.
 - **`copyclosure`** (via `deployTools.mkCopyclosureCommand`) — generates a
   script that copies (rather than symlinks) every path in a derivation's closure
   into a target directory.
@@ -244,9 +249,9 @@ produced, only that it contains the files to be patched.
   `/nix/store/<hash>-<name>` prefixes it replaces, or `mkBundle`'s patch pass
   will fail on some files.
 - **The NUL-padding caveat is real and easy to regress.** Default padding
-  (`\x00`) is only safe for plain, NUL-terminated strings. Anything that
-  tracks its own length (Perl SVs, Ruby RStrings, etc.) needs `--fill-str '/'`
-  or equivalent — see the warning above.
+  (`\x00`) is only safe for plain, NUL-terminated strings. Anything that tracks
+  its own length (Perl SVs, Ruby RStrings, etc.) needs `--fill-str '/'` or
+  equivalent — see the warning above.
 - **`mkCompactClosure` filters on "is this a directory", nothing more.** It
   keeps only closure entries that are directories in the Nix store and drops
   everything else (empty lines, non-directory paths); it has no mechanism for

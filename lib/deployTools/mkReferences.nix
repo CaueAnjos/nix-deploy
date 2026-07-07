@@ -1,3 +1,6 @@
+# TODO:
+# - [ ] make it more flexible and more informative
+# - [ ] add more modes
 {
   lib,
   patchelf,

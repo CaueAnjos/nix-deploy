@@ -1,6 +1,45 @@
 #!/bin/bash
 set -euo pipefail
 
+# ----------------------------------------------------------------------
+# Required environment variables:
+#   DRV - path to the derivation which will have its references searched
+#
+# Description:
+#
+#   Searches for references in two steps: `embedded_references` and
+#   `library_references`. The first step (embedded_references), searches
+#   for strings that match the regex:
+#
+#   `${NIX_STRING_REGEX}[^ '":;=%+,*$]*`
+#
+#   which resolves to:
+#
+#   `/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9+._?=-]+[^ '":;=%+,*$]*`
+#
+#   All paths are added to the `$out_path` (excluding all that ends with
+#   `/lib`. these are assumed to be rpaths) and recursively finds
+#   `embedded_references` for the added paths.
+#
+#   Next step, is `library_references`. This step, finds where all
+#   needed libraries are located, by matching rpath and needed object.
+#
+#   The final result is then deduplicated by sorting and droping any
+#   path that has an ancestor directory already present in the list.
+#
+# Assumptions:
+#
+#   - The regex is able to catch all references
+#   - All references that end with `/lib` or `/lib64` is an rpath
+#   (normaly true)
+#   - Embedded references from libraries are negligible (much closer
+#   to be true, specialy if it isn't a library for interpreted langages,
+#   plugins, Qt or GTK libraries)
+#
+#   These heuristic assumptions keep the result minimal as well as
+#   unstable.
+# ----------------------------------------------------------------------
+
 NIX_STRING_REGEX="/nix/store/[0-9a-df-np-sv-z]{32}-[A-Za-z0-9+._?=-]+"
 
 out_path="$out"
@@ -31,7 +70,7 @@ is_seen_path() {
     [[ -v seen_paths["$1"] ]]
 }
 
-embeded_references() {
+embedded_references() {
     local base_path="$1"
 
     local path
@@ -46,21 +85,17 @@ embeded_references() {
         mark_seen_path "$path"
 
         if [[ -d $path ]]; then
-            embeded_references "$path"
+            embedded_references "$path"
         fi
     done < <(patchstrings --find "${NIX_STRING_REGEX}[^ '"'"'":;=%+,*$]*" "$base_path")
 }
 
-echo "loking for embeded references.."
+echo "loking for embedded references.."
 mark_seen_path "$DRV"
-embeded_references "$DRV"
+embedded_references "$DRV"
 
 declare -A lib_cache
 
-# Resolves and records the needed-library closure for a single file. This is
-# intentionally NOT recursive over the filesystem (no `find` here) - it only
-# ever inspects the one ELF file it's given via patchelf, and recurses via
-# library_references() into any *newly discovered* library location.
 process_needed_libs() {
     local item="$1"
 
@@ -106,13 +141,6 @@ library_references() {
     process_needed_libs "$item"
 
     if [[ -d $item ]]; then
-        # Walk the subtree exactly once here. Do NOT recurse back into
-        # library_references() for entries discovered by this find - they
-        # already belong to the tree we're currently walking, so doing that
-        # would re-`find` the same subtree again for every nested directory
-        # (O(depth * N) instead of O(N)). Newly discovered *library*
-        # locations (outside this tree) still recurse via
-        # process_needed_libs -> library_references above.
         local path
         while read -r -d '' path; do
             if is_valid_path "$path" && ! is_seen_path "$path"; then
