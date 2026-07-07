@@ -1,13 +1,8 @@
 {
-  lib,
-  references,
+  deployTools,
   symlinkJoin,
 }: drv: let
-  referencesFile = references drv;
-  referencePaths = lib.unique (
-    lib.filter (path: path != "" && lib.pathIsDirectory (builtins.storePath path))
-    (lib.splitString "\n" (builtins.readFile referencesFile))
-  );
+  referencePaths = deployTools.mkReferences {inherit drv;};
 in
   symlinkJoin {
     name = "${drv.pname}-closure";
