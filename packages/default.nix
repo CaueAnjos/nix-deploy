@@ -26,6 +26,11 @@
       };
 
       test-compact = pkgs.deployTools.mkCompactClosure pkgs.hello;
+      test-references = pkgs.deployTools.mkReferences {
+        drv = pkgs.hello;
+        mode = "minimal";
+        output = "file";
+      };
     };
 
     overlayAttrs = {
