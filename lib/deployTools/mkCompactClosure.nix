@@ -1,10 +1,11 @@
 {
   deployTools,
-  symlinkJoin,
-}: drv: let
-  referencePaths = deployTools.mkReferences {inherit drv;};
-in
-  symlinkJoin {
-    name = "${drv.pname}-closure";
-    paths = referencePaths;
-  }
+  join,
+}: drv:
+join {
+  name = "${drv.pname or drv.name}-compact";
+  paths = deployTools.mkReferences {
+    inherit drv;
+    mode = "runtime";
+  };
+}
