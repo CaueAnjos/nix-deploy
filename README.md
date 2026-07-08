@@ -109,14 +109,10 @@ Once the overlay is applied, `pkgs.deployTools` exposes:
   symlinked directory.
 - `deployTools.mkClosure` — copies (rather than symlinks) a derivation's full
   closure into `$out/nix/store`.
-- `deployTools.mkCopyclosureCommand` — builds a `copyclosure` script scoped to
-  one derivation's references.
 
 > [!NOTE]
 > `pkgs.patchstrings` is reliably available through the overlay because it's
-> defined directly in `packages/default.nix`. Do not rely on `pkgs.copyclosure`
-> or `pkgs.runtimedeps` being exposed the same way — see
-> [Limitations](#limitations).
+> defined directly in `packages/default.nix`.
 
 ## How It Works
 

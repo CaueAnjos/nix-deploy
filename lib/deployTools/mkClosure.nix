@@ -1,11 +1,21 @@
 {
+  lib,
   deployTools,
   runCommand,
 }: drv: let
-  copyclosure = deployTools.mkCopyclosureCommand {inherit drv;};
+  references = deployTools.mkReferences {
+    inherit drv;
+    mode = "full";
+  };
+
+  cpCommands = lib.forEach references (reference: ''
+    cp -r '${reference}' "$out/nix/store"
+  '');
 in
   runCommand "${drv.pname}-closure"
-  {nativeBuildInputs = [copyclosure];}
+  {}
   ''
-    copyclosure "$out/nix/store"
+    mkdir -p "$out/nix/store"
+
+    ${lib.concatLines cpCommands}
   ''

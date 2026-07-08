@@ -22,7 +22,6 @@
       mkCompactClosure = pkgs.callPackage ./deployTools/mkCompactClosure.nix {};
       mkBundle = pkgs.callPackage ./deployTools/mkBundle.nix {};
       mkClosure = pkgs.callPackage ./deployTools/mkClosure.nix {};
-      mkCopyclosureCommand = pkgs.callPackage ./deployTools/copyclosure.nix {};
     };
   };
 }
