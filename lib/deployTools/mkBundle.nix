@@ -39,22 +39,10 @@ in
         parallel
         patchelf
         patchstrings
-        rsync
       ];
 
-      unpackPhase = ''
-        mkdir -p "src"
-        rsync -a -L "$src/." "src" || {
-          status=$?
-          # rsync exits 23 ("partial transfer due to error") when it hits a
-          # broken/dangling symlink with --copy-links; it still skips that
-          # entry and copies everything else, so treat it as non-fatal.
-          if [ "$status" -ne 23 ]; then
-            exit "$status"
-          fi
-        }
-        chmod -R u+w "src"
-        cd "src"
+      configurePhase = ''
+        chmod -R u+w .
       '';
 
       dontFixup = true;
