@@ -7,12 +7,24 @@
   ];
 
   perSystem = {pkgs, ...}: {
-    overlayAttrs = {
+    overlayAttrs = let
       deployTools = self.lib.deployTools {inherit pkgs;};
+      utilities = self.lib.utilities {inherit pkgs;};
+    in {
+      inherit deployTools;
+      inherit (utilities) join;
     };
   };
 
   flake.lib = {
+    utilities = {
+      pkgs,
+      lib ? pkgs.lib,
+      system ? pkgs.system,
+    }: {
+      join = pkgs.callPackage ./join.nix {};
+    };
+
     deployTools = {
       pkgs,
       lib ? pkgs.lib,
