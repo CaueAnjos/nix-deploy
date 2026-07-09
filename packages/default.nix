@@ -25,7 +25,7 @@
     };
 
     overlayAttrs = {
-      inherit (config.packages) patchstrings copyclosure runtimedeps;
+      inherit (config.packages) patchstrings;
     };
   };
 }
