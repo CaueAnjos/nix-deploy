@@ -47,7 +47,7 @@ The repository ships a few example/test packages built against `pkgs.hello` that
 illustrate the pieces involved (see `packages/default.nix`):
 
 - `test-compact` — `deployTools.mkCompactClosure pkgs.hello`, the deduplicated
-  closure of `pkgs.hello` symlinked together into a single derivation.
+  closure of `pkgs.hello` joined together into a single derivation.
 - `test-bundle` — `deployTools.mkBundle { drv = pkgs.hello; }`, the full
   relocated bundle built from that closure.
 - `test-closure` — `deployTools.mkClosure pkgs.hello`, the full closure of
@@ -106,9 +106,14 @@ Once the overlay is applied, `pkgs.deployTools` exposes:
   `reverse = true` reverses the line order. `output` changes the output style.
   It can be `file` or `nix`.
 - `deployTools.mkCompactClosure` — dedupes a derivation's closure into a flat,
-  symlinked directory.
+  joined directory.
 - `deployTools.mkClosure` — copies (rather than symlinks) a derivation's full
   closure into `$out/nix/store`.
+
+- `utilities.join` — joins paths into a flat directory. The output is, by
+  default, deduplicated using symlinks. Takes
+  `{ name, paths, deduplicate ? "symlink" }`; `deduplicate` can be `symlink`,
+  `hardlink` or `null`, if the intend is to skip deduplication step.
 
 > [!NOTE]
 > `pkgs.patchstrings` is reliably available through the overlay because it's
@@ -126,11 +131,10 @@ Once the overlay is applied, `pkgs.deployTools` exposes:
    closure via `referencesByPopularity`, or `mode = "minimal"` for combined
    embedded-string and ELF rpath/needed scanning, producing a text file listing
    store paths.
-2. **`deployTools.mkCompactClosure drv`** reads that file, drops empty lines,
-   deduplicates the remaining paths, keeps only the ones that are directories in
-   the store (`lib.pathIsDirectory`), and joins them together into one
-   derivation with `symlinkJoin`. The result is a single directory whose top
-   level is a flat union of every store path in the closure.
+2. **`deployTools.mkCompactClosure drv`** reads `drv` runtime references, drops
+   empty paths, and joins them together into one derivation. The result is a
+   single directory whose top level is a flat union of every store path in the
+   closure.
 3. **`deployTools.mkBundle`** copies that compact closure into its build
    directory (`rsync -a -L`, so symlinks are dereferenced into real files), then
    walks every file in parallel and patches it in place.
