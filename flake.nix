@@ -16,7 +16,7 @@
       imports = [
         (import ./packages {inherit inputs;})
         (import ./lib {inherit inputs self;})
-        ./scripts
+        ./tests
       ];
       systems = import inputs.systems;
       perSystem = {
