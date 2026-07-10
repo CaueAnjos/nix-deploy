@@ -4,7 +4,7 @@
   inputs = {
     flake-parts.url = "github:hercules-ci/flake-parts";
     nixpkgs.url = "github:NixOS/nixpkgs/26.05";
-    systems.url = "github:nix-systems/default";
+    systems.url = "github:nix-systems/default-linux";
   };
 
   outputs = inputs @ {
