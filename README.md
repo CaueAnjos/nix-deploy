@@ -236,6 +236,37 @@ produced, only that it contains the files to be patched.
 > binary-mode string patching pass (`patchstrings --fill-str '/' --regex ...`),
 > and this choice should not be regressed to `--pad-str` or default padding.
 
+## Bundlers
+
+**Nix-Deploy** also comes with some bundlers and functions to help you build you
+bundle.
+
+Helpers:
+
+- `mkFpmBundle` — bundle using `fpm`. The bundle, when installed, will be
+  located at `installPrefix` (`/opt/${drv.pname}` by default), and its exposed
+  binaries will be symlinked to `binDir` (`/usr/bin` by default). Takes:
+
+```nix
+{
+  drv,
+  format, # output format for `fpm`. Just for convenience
+  pname ? drv.pname or drv.name,
+  version ? drv.version or "0.0.0",
+  architecture ? stdenv.hostPlatform.parsed.cpu.name,
+  installPrefix ? "/opt/${pname}",
+  binDir ? "/usr/bin",
+  fpmArgs ? {}, # arguments passed to `fpm` as attributes
+  ... # override `mkDerivation` attributes
+}
+```
+
+Bundlers:
+
+- `toDeb` — generates `.deb` packages.
+- `toRpm` — generates `.rpm` packages.
+- `toPacman` — generates `.pacman` packages.
+
 ## Limitations
 
 - **Linux only.** `mkBundle` emits a `lib.warnIfNot stdenv.isLinux` warning (it
@@ -259,9 +290,6 @@ produced, only that it contains the files to be patched.
   exclude something from a bundle's closure, you currently have to override
   `compactClosure` on `mkBundle` yourself rather than configure the built-in
   helper.
-- **This project stops at the relocated closure.** It does not generate `.rpm`,
-  `.deb`, `.AppImage`, `.msi`, or any other package format itself — those steps
-  are expected to consume the directory tree `mkBundle` produces.
 
 > [!TIP]
 > `nix develop` gives you a shell with `patchelf` and `patchstrings` on `PATH`
