@@ -15,6 +15,7 @@
     flake-parts.lib.mkFlake {inherit inputs;} {
       imports = [
         (import ./packages {inherit inputs;})
+        (import ./bundlers {inherit inputs;})
         (import ./lib {inherit inputs self;})
         ./tests
       ];
