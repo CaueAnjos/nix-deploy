@@ -34,6 +34,7 @@
       mkCompactClosure = pkgs.callPackage ./deployTools/mkCompactClosure.nix {};
       mkBundle = pkgs.callPackage ./deployTools/mkBundle.nix {};
       mkClosure = pkgs.callPackage ./deployTools/mkClosure.nix {};
+      mkFpmBundle = pkgs.callPackage ./deployTools/mkFpmBundle.nix {};
     };
   };
 }
