@@ -38,6 +38,9 @@
             patchelf
             patchstrings
             podman
+            dpkg
+            rpm
+            pacman
           ];
         };
       };
